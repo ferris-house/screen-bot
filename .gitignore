@@ -28,3 +28,4 @@ Thumbs.db
 # editor/OS
 .vscode/
 .idea/
+.pnpm-store/

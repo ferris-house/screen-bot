@@ -6,11 +6,36 @@ console.log("📝 renderer.js 已经开始执行");
 // 存储键
 const TASKS_STORAGE_KEY = "wechat_auto_send_tasks";
 const CURRENT_TASK_KEY = "wechat_auto_send_current_task";
+const QUEUE_AGENT_CONFIG_KEY = "wechat_queue_agent_config";
 
 // 全局变量
 let tasks = []; // 任务列表
 let currentTaskIndex = 0; // 当前选中的任务索引
 let currentTask = null; // 当前任务对象
+
+function getDefaultQueueAgentConfig() {
+    return {
+        queueUrl: '',
+        token: '',
+        agentId: 'default-agent',
+        intervalSeconds: 60
+    };
+}
+
+function loadQueueAgentConfig() {
+    const raw = localStorage.getItem(QUEUE_AGENT_CONFIG_KEY);
+    if (!raw) return getDefaultQueueAgentConfig();
+    try {
+        return { ...getDefaultQueueAgentConfig(), ...JSON.parse(raw) };
+    } catch (e) {
+        console.error("读取远程队列配置出错：", e);
+        return getDefaultQueueAgentConfig();
+    }
+}
+
+function saveQueueAgentConfig(config) {
+    localStorage.setItem(QUEUE_AGENT_CONFIG_KEY, JSON.stringify(config));
+}
 
 // 从 localStorage 读取任务列表
 function loadTasks() {
@@ -86,6 +111,82 @@ function addLog(message, type = 'info') {
     }
     
     console.log(`📝 [${type.toUpperCase()}] ${message}`);
+}
+
+function formatQueueTime(value) {
+    if (!value) return '-';
+    try {
+        return new Date(value).toLocaleString();
+    } catch (e) {
+        return value;
+    }
+}
+
+function readQueueAgentForm() {
+    return {
+        queueUrl: document.getElementById('queue-url-input').value.trim(),
+        token: document.getElementById('queue-token-input').value.trim(),
+        agentId: document.getElementById('queue-agent-id-input').value.trim() || 'default-agent',
+        intervalSeconds: Number(document.getElementById('queue-interval-input').value) || 60
+    };
+}
+
+function renderQueueAgentConfig(config) {
+    document.getElementById('queue-url-input').value = config.queueUrl || '';
+    document.getElementById('queue-token-input').value = config.token || '';
+    document.getElementById('queue-agent-id-input').value = config.agentId || 'default-agent';
+    document.getElementById('queue-interval-input').value = config.intervalSeconds || 60;
+}
+
+function renderQueueAgentStatus(status) {
+    const statusText = status.enabled ? `运行中：${status.state}` : '未启动';
+    document.getElementById('queue-status').textContent = statusText;
+    document.getElementById('queue-last-poll').textContent = formatQueueTime(status.lastPollAt);
+    document.getElementById('queue-last-task').textContent = status.lastTaskId || '-';
+    document.getElementById('queue-last-error').textContent = status.lastError || '-';
+    document.getElementById('queue-start-btn').disabled = !!status.enabled;
+    document.getElementById('queue-stop-btn').disabled = !status.enabled;
+}
+
+async function startQueueAgent() {
+    const config = readQueueAgentForm();
+    if (!config.queueUrl) {
+        showToast('请先填写队列接口 URL', 2000);
+        addLog('请先填写队列接口 URL', 'warning');
+        return;
+    }
+
+    saveQueueAgentConfig(config);
+    const result = await ipcRenderer.invoke('queue-agent:start', config);
+    renderQueueAgentStatus(result.status);
+
+    if (result.success) {
+        addLog('远程队列轮询已启动', 'success');
+        showToast('远程队列轮询已启动', 2000);
+    } else {
+        addLog(`远程队列启动失败：${result.error}`, 'error');
+        showToast(`启动失败：${result.error}`, 3000);
+    }
+}
+
+async function stopQueueAgent() {
+    const result = await ipcRenderer.invoke('queue-agent:stop');
+    renderQueueAgentStatus(result.status);
+    addLog('远程队列轮询已停止', 'info');
+    showToast('远程队列轮询已停止', 2000);
+}
+
+async function refreshQueueAgentStatus() {
+    const status = await ipcRenderer.invoke('queue-agent:get-status');
+    renderQueueAgentStatus(status);
+}
+
+async function sendItemViaIpc(item) {
+    const result = await ipcRenderer.invoke('send-item', item);
+    if (!result || !result.success) {
+        throw new Error(result && result.error ? result.error : '发送失败');
+    }
+    return result;
 }
 
 // 显示弹窗
@@ -553,7 +654,7 @@ function renderTaskList() {
 
 // 从首页执行任务
 async function executeTaskFromHomepage() {
-    if (!currentTask || !currentTask.items || !currentTask.items.length === 0) {
+    if (!currentTask || !currentTask.items || currentTask.items.length === 0) {
         addLog('当前任务没有内容，无法执行', 'warning');
         return;
     }
@@ -598,7 +699,7 @@ async function executeTaskFromHomepage() {
             console.log(`🔍 调试 - 内容长度:`, item.content ? item.content.length : 'undefined');
             
             try {
-                const result = await ipcRenderer.invoke('send-item', item);
+                const result = await sendItemViaIpc(item);
                 console.log(`🔍 调试 - IPC调用结果:`, result);
                 addLog(`第 ${i + 1} 条发送成功`, 'success');
             } catch (error) {
@@ -838,7 +939,7 @@ function saveContent() {
 
 // 执行任务（详情页）
 async function executeTask() {
-    if (!currentTask || !currentTask.items || !currentTask.items.length === 0) {
+    if (!currentTask || !currentTask.items || currentTask.items.length === 0) {
         addLog('当前任务没有内容，无法执行', 'warning');
         return;
     }
@@ -883,7 +984,7 @@ async function executeTask() {
             console.log(`🔍 调试 - 内容长度:`, item.content ? item.content.length : 'undefined');
             
             try {
-                const result = await ipcRenderer.invoke('send-item', item);
+                const result = await sendItemViaIpc(item);
                 console.log(`🔍 调试 - IPC调用结果:`, result);
                 addLog(`第 ${i + 1} 条发送成功`, 'success');
             } catch (error) {
@@ -1019,11 +1120,32 @@ window.addEventListener('DOMContentLoaded', () => {
     tasks = loadTasks();
     currentTaskIndex = loadCurrentTaskIndex();
     currentTask = tasks[currentTaskIndex];
+
+    // 加载远程队列配置
+    renderQueueAgentConfig(loadQueueAgentConfig());
+    refreshQueueAgentStatus();
+
+    ipcRenderer.on('queue-agent:status', (event, status) => {
+        renderQueueAgentStatus(status);
+    });
+
+    ipcRenderer.on('queue-agent:log', (event, payload) => {
+        addLog(payload.message, payload.type || 'info');
+    });
     
     // 绑定事件监听器
     document.getElementById('create-task-btn').addEventListener('click', () => {
         showModal('task-modal');
     });
+
+    document.getElementById('queue-save-btn').addEventListener('click', () => {
+        saveQueueAgentConfig(readQueueAgentForm());
+        addLog('远程队列配置已保存', 'success');
+        showToast('远程队列配置已保存', 2000);
+    });
+
+    document.getElementById('queue-start-btn').addEventListener('click', startQueueAgent);
+    document.getElementById('queue-stop-btn').addEventListener('click', stopQueueAgent);
     
     document.getElementById('back-btn').addEventListener('click', () => {
         showHomepage();

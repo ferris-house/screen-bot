@@ -337,6 +337,56 @@
         .log-success { background: #e8f5e8; }
         .log-error { background: #ffebee; }
         .log-warning { background: #fff3e0; }
+
+        /* 远程队列配置 */
+        .queue-section {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .queue-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .queue-status {
+            font-size: 13px;
+            color: #666;
+        }
+        .queue-form {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 120px;
+            gap: 12px;
+            align-items: end;
+        }
+        .queue-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 14px;
+        }
+        .queue-meta {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 14px;
+            font-size: 12px;
+            color: #666;
+        }
+        .queue-meta-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            min-height: 34px;
+        }
         
         /* 按钮样式 */
         .btn {
@@ -481,6 +531,9 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+            .queue-form, .queue-meta {
+                grid-template-columns: 1fr;
+            }
             .content-preview {
                 margin-right: 0;
                 margin-bottom: 10px;
@@ -567,6 +620,42 @@
                     </div>
                     <div class="task-list" id="task-list">
                         <!-- 任务列表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 远程队列配置 -->
+                <div class="queue-section">
+                    <div class="queue-header">
+                        <div class="queue-title">远程队列</div>
+                        <div class="queue-status" id="queue-status">未启动</div>
+                    </div>
+                    <div class="queue-form">
+                        <div class="form-group">
+                            <label class="form-label">队列接口 URL</label>
+                            <input type="text" class="form-input" id="queue-url-input" placeholder="https://example.com/api">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Token</label>
+                            <input type="password" class="form-input" id="queue-token-input" placeholder="Bearer Token">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Agent ID</label>
+                            <input type="text" class="form-input" id="queue-agent-id-input" placeholder="default-agent">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">间隔秒数</label>
+                            <input type="number" class="form-input" id="queue-interval-input" min="10" value="60">
+                        </div>
+                    </div>
+                    <div class="queue-actions">
+                        <button class="btn btn-primary" id="queue-save-btn">保存配置</button>
+                        <button class="btn btn-success" id="queue-start-btn">启动轮询</button>
+                        <button class="btn btn-warning" id="queue-stop-btn">停止轮询</button>
+                    </div>
+                    <div class="queue-meta">
+                        <div class="queue-meta-item">最近轮询：<span id="queue-last-poll">-</span></div>
+                        <div class="queue-meta-item">最近任务：<span id="queue-last-task">-</span></div>
+                        <div class="queue-meta-item">最近错误：<span id="queue-last-error">-</span></div>
                     </div>
                 </div>
                 
