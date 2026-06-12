@@ -1,0 +1,37 @@
+appId: com.shiflow.operationassistant
+productName: 识流运营助手lite
+
+directories:
+  buildResources: assets
+  output: dist
+
+files:
+  - out/**/*
+  - assets/**/*
+  - package.json
+
+extraResources:
+  - node_modules/robotjs/**/*
+  - node_modules/node-window-manager/**/*
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: assets/app_icon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 识流运营助手lite
+  installerIcon: assets/app_icon.ico
+  uninstallerIcon: assets/app_icon.ico
+
+mac:
+  target:
+    - dmg
+    - zip
+  icon: assets/icon.icns

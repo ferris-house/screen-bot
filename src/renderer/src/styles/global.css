@@ -1,0 +1,20 @@
+/* src/renderer/src/styles/global.css */
+
+@import './variables.css';
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: var(--spacing-xl);
+  background-color: var(--color-bg-primary);
+}
+
+@media (max-width: 768px) {
+  body {
+    padding: var(--spacing-md);
+  }
+}
