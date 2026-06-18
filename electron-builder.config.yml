@@ -1,5 +1,5 @@
 appId: com.shiflow.operationassistant
-productName: 识流运营助手lite
+productName: 企微群发助手
 
 directories:
   buildResources: assets
@@ -26,7 +26,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: 识流运营助手lite
+  shortcutName: 企微群发助手
   installerIcon: assets/app_icon.ico
   uninstallerIcon: assets/app_icon.ico
 

@@ -12,6 +12,7 @@
 
 /* Header */
 .header {
+  position: relative;
   background: transparent;
   color: var(--color-text-primary);
   padding: var(--spacing-xl);
@@ -32,6 +33,49 @@
   font-size: var(--font-size-xxl);
   font-weight: 600;
   color: var(--color-text-primary);
+}
+
+.header-action-btn {
+  position: absolute;
+  top: 50%;
+  right: var(--spacing-xl);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-action-btn .btn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.test-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.test-btn:hover {
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.back-btn {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.back-btn:hover {
+  transform: translateY(-50%) scale(1.05);
+  box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
 }
 
 /* 主视图 */

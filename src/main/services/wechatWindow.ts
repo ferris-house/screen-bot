@@ -3,27 +3,10 @@
 import { windowManager } from 'node-window-manager'
 import { delay } from '../utils/delay'
 
-const PLATFORM_DELAY = process.platform === 'win32' ? 800 : 500
-
 export function isWeChatWindow(win: any): boolean {
   if (!win) return false
   const title = win.getTitle() || ''
   return title === '企业微信'
-}
-
-export async function waitForWeChatActive(timeoutMs: number = 0): Promise<any> {
-  const startedAt = Date.now()
-
-  while (true) {
-    const activeWin = windowManager.getActiveWindow()
-    if (activeWin && isWeChatWindow(activeWin)) return activeWin
-
-    if (timeoutMs > 0 && Date.now() - startedAt > timeoutMs) {
-      throw new Error('等待企业微信/微信窗口激活超时')
-    }
-
-    await delay(PLATFORM_DELAY)
-  }
 }
 
 export async function activateWeChatWindow(): Promise<void> {
@@ -51,53 +34,53 @@ export async function activateWeChatWindow(): Promise<void> {
   if (process.platform === 'win32') {
     console.log('[DEBUG] Windows 平台，开始激活流程')
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      console.log(`[DEBUG] 第 ${attempt} 次尝试激活`)
-
-      try {
-        wechatWindow.restore()
-        console.log('[DEBUG] restore() 成功')
-      } catch (e: any) {
-        console.log(`[DEBUG] restore() 失败: ${e.message}`)
-      }
-
-      await delay(200)
-
-      try {
-        wechatWindow.maximize()
-        await delay(100)
-        wechatWindow.restore()
-        console.log('[DEBUG] maximize->restore 成功')
-      } catch (e: any) {
-        console.log(`[DEBUG] maximize 失败: ${e.message}`)
-      }
-
-      await delay(200)
-
-      try {
-        wechatWindow.bringToTop()
-        console.log('[DEBUG] bringToTop() 成功')
-      } catch (e: any) {
-        console.log(`[DEBUG] bringToTop() 失败: ${e.message}`)
-      }
-
-      await delay(500)
-
-      const newActive = windowManager.getActiveWindow()
-      if (newActive && isWeChatWindow(newActive)) {
-        console.log(`[DEBUG] 第 ${attempt} 次尝试成功，企业微信已激活`)
-        return
-      }
+    try {
+      wechatWindow.restore()
+      console.log('[DEBUG] restore() 成功')
+    } catch (e: any) {
+      console.log(`[DEBUG] restore() 失败: ${e.message}`)
     }
 
-    console.log('[DEBUG] 等待窗口激活确认')
-    await waitForWeChatActive(5000)
-    console.log('[DEBUG] 窗口已成功激活')
+    await delay(200)
+
+    try {
+      wechatWindow.bringToTop()
+      console.log('[DEBUG] bringToTop() 成功')
+    } catch (e: any) {
+      console.log(`[DEBUG] bringToTop() 失败: ${e.message}`)
+    }
+
+    await delay(500)
+
+    // 验证激活结果
+    const activeWin = windowManager.getActiveWindow()
+    if (!activeWin || !isWeChatWindow(activeWin)) {
+      console.log('[DEBUG] 窗口激活失败')
+      throw new Error('无法激活企业微信窗口，请检查窗口是否被最小化或隐藏')
+    }
+
+    console.log('[DEBUG] 窗口激活成功')
   } else {
     // Mac 平台
-    wechatWindow.bringToTop()
+    console.log('[DEBUG] macOS 平台，开始激活流程')
+
+    try {
+      wechatWindow.bringToTop()
+      console.log('[DEBUG] bringToTop() 成功')
+    } catch (e: any) {
+      console.log(`[DEBUG] bringToTop() 失败: ${e.message}`)
+      throw new Error('无法激活企业微信窗口')
+    }
+
     await delay(500)
-    await waitForWeChatActive(5000)
+
+    // 验证激活结果
+    const activeWin = windowManager.getActiveWindow()
+    if (!activeWin || !isWeChatWindow(activeWin)) {
+      console.log('[DEBUG] 窗口激活失败')
+      throw new Error('企业微信窗口激活失败，请手动切换到微信窗口')
+    }
+
     console.log('[DEBUG] 窗口已成功激活')
   }
 }
