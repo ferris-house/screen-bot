@@ -227,6 +227,9 @@
 }
 
 .log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 15px;
 }
 
@@ -234,7 +237,6 @@
   font-size: var(--font-size-lg);
   font-weight: bold;
   color: var(--color-text-primary);
-  margin-bottom: 10px;
 }
 
 .log-content {

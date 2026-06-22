@@ -3,7 +3,6 @@
 import React, { useState } from 'react'
 import Container from './components/layout/Container'
 import Header from './components/layout/Header'
-import Footer from './components/layout/Footer'
 import TestModule from './components/TestModule/TestModule'
 import QueueModule from './components/QueueModule/QueueModule'
 import LogSection from './components/LogSection/LogSection'

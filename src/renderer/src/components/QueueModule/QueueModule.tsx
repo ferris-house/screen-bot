@@ -13,6 +13,7 @@ const QueueModule: React.FC = () => {
     updateConfig,
     startAgent,
     stopAgent,
+    abortAgent,
     loadStatus,
     updateStatus
   } = useQueueStore()
@@ -66,6 +67,13 @@ const QueueModule: React.FC = () => {
     showToast('远程队列轮询已停止', 2000)
   }, [stopAgent, addLog, showToast])
 
+  // 终止任务
+  const handleAbort = useCallback(async () => {
+    await abortAgent()
+    addLog('正在终止任务...', 'warning')
+    showToast('正在终止任务...', 2000)
+  }, [abortAgent, addLog, showToast])
+
   // 格式化时间
   const formatTime = (value: string | null) => {
     if (!value) return '-'
@@ -95,32 +103,13 @@ const QueueModule: React.FC = () => {
           />
         </FormGroup>
 
-        <FormGroup label="Token">
-          <Input
-            id="queue-token-input"
-            type="password"
-            placeholder="Bearer Token"
-            value={config.token}
-            onChange={(value) => updateConfig({ token: value })}
-          />
-        </FormGroup>
-
-        <FormGroup label="Agent ID">
-          <Input
-            id="queue-agent-id-input"
-            placeholder="default-agent"
-            value={config.agentId}
-            onChange={(value) => updateConfig({ agentId: value })}
-          />
-        </FormGroup>
-
-        <FormGroup label="间隔秒数">
+        <FormGroup label="间隔分钟数">
           <Input
             id="queue-interval-input"
             type="number"
-            min={10}
-            value={config.intervalSeconds}
-            onChange={(value) => updateConfig({ intervalSeconds: Number(value) })}
+            min={1}
+            value={Math.round(config.intervalSeconds / 60)}
+            onChange={(value) => updateConfig({ intervalSeconds: Number(value) * 60 })}
           />
         </FormGroup>
       </div>
@@ -129,6 +118,7 @@ const QueueModule: React.FC = () => {
         <Button variant="primary" onClick={handleSave}>保存配置</Button>
         <Button variant="success" disabled={status.enabled} onClick={handleStart}>启动轮询</Button>
         <Button variant="warning" disabled={!status.enabled} onClick={handleStop}>停止轮询</Button>
+        <Button variant="danger" disabled={!status.enabled} onClick={handleAbort}>终止任务</Button>
       </div>
 
       <div className="queue-meta">

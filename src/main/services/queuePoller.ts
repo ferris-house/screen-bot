@@ -11,6 +11,7 @@ import { DEFAULT_QUEUE_CONFIG } from '@shared/types'
 let queueAgentTimer: NodeJS.Timeout | null = null
 let queueAgentRunning = false
 let queueAgentBusy = false
+let shouldAbortTask = false
 let queueAgentConfig: QueueAgentConfig = DEFAULT_QUEUE_CONFIG
 let queueAgentStatus: QueueAgentStatus = {
   enabled: false,
@@ -20,6 +21,27 @@ let queueAgentStatus: QueueAgentStatus = {
   lastError: null
 }
 let mainWindow: BrowserWindow | null = null
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${ms}ms`
+  }
+
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+
+  if (hours > 0) {
+    const m = minutes % 60
+    const s = seconds % 60
+    return `${hours}小时${m}分${s}秒`
+  } else if (minutes > 0) {
+    const s = seconds % 60
+    return `${minutes}分${s}秒`
+  } else {
+    return `${seconds}秒`
+  }
+}
 
 function emitQueueAgentStatus(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -43,14 +65,17 @@ function normalizeRemoteTask(rawTask: any): RemoteTask {
     throw new Error('任务格式无效')
   }
 
+  // 新接口格式：{ id, target, message }
   const message = rawTask.message || rawTask.content
+  const target = rawTask.target
+
   const items = Array.isArray(rawTask.items)
     ? rawTask.items
-    : [{ type: rawTask.type || 'text', content: message }]
+    : [{ type: 'text', content: message }]
 
   return {
-    id: rawTask.id || rawTask.taskId || String(Date.now()),
-    targets: Array.isArray(rawTask.targets) ? rawTask.targets : [],
+    id: rawTask.id || String(Date.now()),
+    targets: target ? [target] : [],
     items: items.filter((item: any) => item && item.content),
     raw: rawTask
   }
@@ -61,7 +86,6 @@ async function requestQueueApi(path: string, options: Record<string, any> = {}):
   const url = `${baseUrl}${path}`
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(queueAgentConfig.token ? { Authorization: `Bearer ${queueAgentConfig.token}` } : {}),
     ...(options.headers || {})
   }
 
@@ -84,15 +108,15 @@ async function requestQueueApi(path: string, options: Record<string, any> = {}):
 }
 
 async function claimRemoteTasks(): Promise<any[]> {
-  const body = {
-    agentId: queueAgentConfig.agentId || 'default-agent',
-    limit: 1
-  }
-  const data = await requestQueueApi('/tasks/claim', {
-    method: 'POST',
-    body: JSON.stringify(body)
+  const data = await requestQueueApi('/messages/pending', {
+    method: 'GET'
   })
+  // 处理新接口格式：{ status: 0, result: [...] }
+  if (data && data.status === 0) {
+    return Array.isArray(data.result) ? data.result : []
+  }
 
+  // 兼容旧格式
   if (Array.isArray(data)) return data
   if (Array.isArray(data.tasks)) return data.tasks
   if (data.task) return [data.task]
@@ -100,9 +124,9 @@ async function claimRemoteTasks(): Promise<any[]> {
 }
 
 async function reportRemoteTask(taskId: string, payload: TaskReport): Promise<void> {
-  await requestQueueApi(`/tasks/${encodeURIComponent(taskId)}/result`, {
+  await requestQueueApi('/messages/sent', {
     method: 'POST',
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ id: taskId })
   })
 }
 
@@ -120,6 +144,11 @@ async function executeRemoteTask(rawTask: any): Promise<void> {
 
   const targets = task.targets.length > 0 ? task.targets : [null]
   for (const target of targets) {
+    if (shouldAbortTask) {
+      emitQueueAgentLog('任务已被终止', 'warning')
+      throw new Error('任务已被用户终止')
+    }
+
     try {
       if (target) {
         emitQueueAgentLog(`正在打开群聊：${target}`, 'info')
@@ -129,6 +158,11 @@ async function executeRemoteTask(rawTask: any): Promise<void> {
       }
 
       for (const item of task.items) {
+        if (shouldAbortTask) {
+          emitQueueAgentLog('任务已被终止', 'warning')
+          throw new Error('任务已被用户终止')
+        }
+
         if (item.type && item.type !== 'text' && item.type !== 'image') {
           throw new Error(`暂不支持的内容类型: ${item.type}`)
         }
@@ -145,6 +179,10 @@ async function executeRemoteTask(rawTask: any): Promise<void> {
         error: error.message
       })
       emitQueueAgentLog(`${target || '当前会话'} 发送失败：${error.message}`, 'error')
+
+      if (shouldAbortTask) {
+        throw error
+      }
     }
   }
 
@@ -169,19 +207,27 @@ async function pollQueueAgentOnce(): Promise<void> {
   queueAgentBusy = true
   updateQueueAgentStatus({ state: 'polling', lastPollAt: new Date().toISOString(), lastError: null })
 
+  const pollStartTime = Date.now()
   try {
     const tasks = await claimRemoteTasks()
     if (tasks.length === 0) {
       updateQueueAgentStatus({ state: 'idle' })
       return
     }
+
+    emitQueueAgentLog(`本轮拉取到 ${tasks.length} 条待发送消息`, 'info')
+
     for (const task of tasks) {
       await executeRemoteTask(task)
     }
+
+    const pollDuration = Date.now() - pollStartTime
+    emitQueueAgentLog(`本轮任务完成，共 ${tasks.length} 条消息，总耗时 ${formatDuration(pollDuration)}`, 'success')
     updateQueueAgentStatus({ state: 'idle' })
   } catch (error: any) {
+    const pollDuration = Date.now() - pollStartTime
     updateQueueAgentStatus({ state: 'error', lastError: error.message })
-    emitQueueAgentLog(`远程队列轮询失败：${error.message}`, 'error')
+    emitQueueAgentLog(`远程队列轮询失败：${error.message}，耗时 ${formatDuration(pollDuration)}`, 'error')
   } finally {
     queueAgentBusy = false
   }
@@ -196,6 +242,22 @@ export function stopQueueAgent(): void {
   updateQueueAgentStatus({ enabled: false, state: 'idle' })
 }
 
+export function abortQueueAgent(): void {
+  shouldAbortTask = true
+  queueAgentRunning = false
+  if (queueAgentTimer) {
+    clearInterval(queueAgentTimer)
+    queueAgentTimer = null
+  }
+  emitQueueAgentLog('正在终止任务...', 'warning')
+
+  // 等待任务终止后重置状态
+  setTimeout(() => {
+    updateQueueAgentStatus({ enabled: false, state: 'idle', lastError: '任务已被用户终止' })
+    emitQueueAgentLog('任务已终止', 'warning')
+  }, 1000)
+}
+
 export function startQueueAgent(config: QueueAgentConfig, win: BrowserWindow): void {
   if (!config || !config.queueUrl) {
     throw new Error('请先填写队列接口 URL')
@@ -203,17 +265,17 @@ export function startQueueAgent(config: QueueAgentConfig, win: BrowserWindow): v
 
   mainWindow = win
   stopQueueAgent()
+  shouldAbortTask = false
+  queueAgentBusy = false
 
   queueAgentConfig = {
     queueUrl: config.queueUrl,
-    token: config.token || '',
-    agentId: config.agentId || 'default-agent',
-    intervalSeconds: Math.max(Number(config.intervalSeconds) || 60, 10)
+    intervalSeconds: Math.max(Number(config.intervalSeconds) || 60, 60)
   }
 
   queueAgentRunning = true
   updateQueueAgentStatus({ enabled: true, state: 'idle', lastError: null })
-  emitQueueAgentLog(`远程队列轮询已启动，间隔 ${queueAgentConfig.intervalSeconds} 秒`, 'success')
+  emitQueueAgentLog(`远程队列轮询已启动，间隔 ${Math.round(queueAgentConfig.intervalSeconds / 60)} 分钟`, 'success')
 
   pollQueueAgentOnce()
   queueAgentTimer = setInterval(pollQueueAgentOnce, queueAgentConfig.intervalSeconds * 1000)

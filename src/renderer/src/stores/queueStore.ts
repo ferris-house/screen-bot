@@ -12,6 +12,7 @@ interface QueueState {
   updateStatus: (patch: Partial<QueueAgentStatus>) => void
   startAgent: (config: QueueAgentConfig) => Promise<void>
   stopAgent: () => Promise<void>
+  abortAgent: () => Promise<void>
   loadStatus: () => Promise<void>
 }
 
@@ -52,6 +53,11 @@ export const useQueueStore = create<QueueState>()(
 
       stopAgent: async () => {
         const result = await window.electron.ipc.invoke('queue-agent:stop')
+        set({ status: result.status })
+      },
+
+      abortAgent: async () => {
+        const result = await window.electron.ipc.invoke('queue-agent:abort')
         set({ status: result.status })
       },
 

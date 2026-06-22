@@ -1,7 +1,7 @@
 // src/main/ipc/queueHandler.ts
 
 import { ipcMain, BrowserWindow } from 'electron'
-import { startQueueAgent, stopQueueAgent, getQueueAgentStatus } from '../services/queuePoller'
+import { startQueueAgent, stopQueueAgent, abortQueueAgent, getQueueAgentStatus } from '../services/queuePoller'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -23,6 +23,11 @@ export function registerQueueHandlers(win: BrowserWindow): void {
 
   ipcMain.handle('queue-agent:stop', async () => {
     stopQueueAgent()
+    return { success: true, status: getQueueAgentStatus() }
+  })
+
+  ipcMain.handle('queue-agent:abort', async () => {
+    abortQueueAgent()
     return { success: true, status: getQueueAgentStatus() }
   })
 

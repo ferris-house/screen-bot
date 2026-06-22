@@ -2,9 +2,10 @@
 
 import React, { useEffect, useRef } from 'react'
 import { useLogStore } from '../../stores'
+import Button from '../common/Button'
 
 const LogSection: React.FC = () => {
-  const { entries } = useLogStore()
+  const { entries, clearLogs } = useLogStore()
   const logContentRef = useRef<HTMLDivElement>(null)
 
   // 自动滚动到最新日志
@@ -18,6 +19,7 @@ const LogSection: React.FC = () => {
     <section className="log-section">
       <div className="log-header">
         <div className="log-title">执行日志</div>
+        <Button variant="warning" onClick={clearLogs}>清空</Button>
       </div>
       <div className="log-content" ref={logContentRef}>
         {entries.length === 0 ? (

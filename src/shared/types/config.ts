@@ -3,8 +3,6 @@
 // 队列代理配置
 export interface QueueAgentConfig {
   queueUrl: string
-  token: string
-  agentId: string
   intervalSeconds: number
 }
 
@@ -25,8 +23,6 @@ export interface TestConfig {
 // 默认配置
 export const DEFAULT_QUEUE_CONFIG: QueueAgentConfig = {
   queueUrl: '',
-  token: '',
-  agentId: 'default-agent',
   intervalSeconds: 60
 }
 
