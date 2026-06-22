@@ -12,6 +12,7 @@ let queueAgentTimer: NodeJS.Timeout | null = null
 let queueAgentRunning = false
 let queueAgentBusy = false
 let shouldAbortTask = false
+let pendingPoll = false // 标记：是否有等待中的轮询动作
 let queueAgentConfig: QueueAgentConfig = DEFAULT_QUEUE_CONFIG
 let queueAgentStatus: QueueAgentStatus = {
   enabled: false,
@@ -202,7 +203,19 @@ async function executeRemoteTask(rawTask: any): Promise<void> {
 }
 
 async function pollQueueAgentOnce(): Promise<void> {
-  if (!queueAgentRunning || queueAgentBusy) return
+  if (!queueAgentRunning) return
+
+  // 如果当前有任务在执行
+  if (queueAgentBusy) {
+    // 暂停轮询 timer
+    if (queueAgentTimer) {
+      clearInterval(queueAgentTimer)
+      queueAgentTimer = null
+    }
+    pendingPoll = true // 标记需要再拉取一次
+    emitQueueAgentLog('当前任务执行中，暂停轮询，待完成后立即拉取', 'warning')
+    return
+  }
 
   queueAgentBusy = true
   updateQueueAgentStatus({ state: 'polling', lastPollAt: new Date().toISOString(), lastError: null })
@@ -210,6 +223,14 @@ async function pollQueueAgentOnce(): Promise<void> {
   const pollStartTime = Date.now()
   try {
     const tasks = await claimRemoteTasks()
+
+    // 拉取完成后，如果有等待的轮询标记，立即恢复 timer
+    if (pendingPoll) {
+      pendingPoll = false
+      queueAgentTimer = setInterval(pollQueueAgentOnce, queueAgentConfig.intervalSeconds * 1000)
+      emitQueueAgentLog('拉取完成，轮询已恢复', 'success')
+    }
+
     if (tasks.length === 0) {
       updateQueueAgentStatus({ state: 'idle' })
       return
@@ -228,13 +249,26 @@ async function pollQueueAgentOnce(): Promise<void> {
     const pollDuration = Date.now() - pollStartTime
     updateQueueAgentStatus({ state: 'error', lastError: error.message })
     emitQueueAgentLog(`远程队列轮询失败：${error.message}，耗时 ${formatDuration(pollDuration)}`, 'error')
+
+    // 失败时也要恢复轮询（如果有等待标记）
+    if (pendingPoll) {
+      pendingPoll = false
+      queueAgentTimer = setInterval(pollQueueAgentOnce, queueAgentConfig.intervalSeconds * 1000)
+      emitQueueAgentLog('轮询已恢复', 'success')
+    }
   } finally {
     queueAgentBusy = false
+
+    // 任务完成后，如果有等待的轮询标记，立即触发一次拉取
+    if (pendingPoll && queueAgentRunning) {
+      pollQueueAgentOnce()
+    }
   }
 }
 
 export function stopQueueAgent(): void {
   queueAgentRunning = false
+  pendingPoll = false // 清除等待标记
   if (queueAgentTimer) {
     clearInterval(queueAgentTimer)
     queueAgentTimer = null
@@ -244,6 +278,7 @@ export function stopQueueAgent(): void {
 
 export function abortQueueAgent(): void {
   shouldAbortTask = true
+  pendingPoll = false // 清除等待标记
   queueAgentRunning = false
   if (queueAgentTimer) {
     clearInterval(queueAgentTimer)
@@ -266,6 +301,7 @@ export function startQueueAgent(config: QueueAgentConfig, win: BrowserWindow): v
   mainWindow = win
   stopQueueAgent()
   shouldAbortTask = false
+  pendingPoll = false // 重置等待标记
   queueAgentBusy = false
 
   queueAgentConfig = {
