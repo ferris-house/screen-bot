@@ -14,6 +14,9 @@ extraResources:
   - node_modules/robotjs/**/*
   - node_modules/node-window-manager/**/*
 
+# 禁用 electron-builder 的自动重建，使用 electron-rebuild 代替
+npmRebuild: false
+
 win:
   target:
     - target: nsis

@@ -66,9 +66,10 @@ function normalizeRemoteTask(rawTask: any): RemoteTask {
     throw new Error('任务格式无效')
   }
 
-  // 新接口格式：{ id, target, message }
-  const message = rawTask.message || rawTask.content
-  const target = rawTask.target
+  // 新接口格式：{ id, chatName, content }
+  // chatName 为目标群聊，content 为消息内容
+  const message = rawTask.content || rawTask.message
+  const target = rawTask.chatName || rawTask.target
 
   const items = Array.isArray(rawTask.items)
     ? rawTask.items
@@ -82,9 +83,7 @@ function normalizeRemoteTask(rawTask: any): RemoteTask {
   }
 }
 
-async function requestQueueApi(path: string, options: Record<string, any> = {}): Promise<any> {
-  const baseUrl = queueAgentConfig.queueUrl.replace(/\/+$/, '')
-  const url = `${baseUrl}${path}`
+async function requestApi(url: string, options: Record<string, any> = {}): Promise<any> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
@@ -109,7 +108,8 @@ async function requestQueueApi(path: string, options: Record<string, any> = {}):
 }
 
 async function claimRemoteTasks(): Promise<any[]> {
-  const data = await requestQueueApi('/messages/pending', {
+  const url = queueAgentConfig.queueUrl
+  const data = await requestApi(url, {
     method: 'GET'
   })
   // 处理新接口格式：{ status: 0, result: [...] }
@@ -125,9 +125,27 @@ async function claimRemoteTasks(): Promise<any[]> {
 }
 
 async function reportRemoteTask(taskId: string, payload: TaskReport): Promise<void> {
-  await requestQueueApi('/messages/sent', {
+  // 检查是否启用上报
+  if (!queueAgentConfig.reportEnabled) {
+    emitQueueAgentLog(`上报已禁用，跳过上报任务 ${taskId}`, 'info')
+    return
+  }
+
+  // 检查是否配置了上报 URL
+  if (!queueAgentConfig.reportUrl) {
+    emitQueueAgentLog(`未配置上报接口 URL，跳过上报任务 ${taskId}`, 'warning')
+    return
+  }
+
+  // pushStatus: 1=成功，-1=失败
+  const pushStatus = payload.status === 'success' ? 1 : -1
+
+  await requestApi(queueAgentConfig.reportUrl, {
     method: 'POST',
-    body: JSON.stringify({ id: taskId })
+    body: JSON.stringify({
+      queueId: taskId,
+      pushStatus
+    })
   })
 }
 
@@ -306,7 +324,9 @@ export function startQueueAgent(config: QueueAgentConfig, win: BrowserWindow): v
 
   queueAgentConfig = {
     queueUrl: config.queueUrl,
-    intervalSeconds: Math.max(Number(config.intervalSeconds) || 60, 60)
+    intervalSeconds: Math.max(Number(config.intervalSeconds) || 60, 60),
+    reportEnabled: config.reportEnabled ?? true,
+    reportUrl: config.reportUrl || ''
   }
 
   queueAgentRunning = true

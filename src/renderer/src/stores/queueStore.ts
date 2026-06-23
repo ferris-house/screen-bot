@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { QueueAgentConfig, QueueAgentStatus, DEFAULT_QUEUE_CONFIG } from '@shared/types'
+import type { QueueAgentConfig, QueueAgentStatus } from '@shared/types'
 import { DEFAULT_QUEUE_CONFIG } from '@shared/types'
 
 interface QueueState {

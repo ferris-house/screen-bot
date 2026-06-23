@@ -94,10 +94,10 @@ const QueueModule: React.FC = () => {
       </div>
 
       <div className="queue-form">
-        <FormGroup label="队列接口 URL">
+        <FormGroup label="拉取接口 URL">
           <Input
             id="queue-url-input"
-            placeholder="https://example.com/api"
+            placeholder="https://example.com/api/messages/pending"
             value={config.queueUrl}
             onChange={(value) => updateConfig({ queueUrl: value })}
           />
@@ -112,6 +112,31 @@ const QueueModule: React.FC = () => {
             onChange={(value) => updateConfig({ intervalSeconds: Number(value) * 60 })}
           />
         </FormGroup>
+
+        <FormGroup label="启用上报">
+          <div className="checkbox-wrapper">
+            <input
+              type="checkbox"
+              id="report-enabled-checkbox"
+              checked={config.reportEnabled ?? true}
+              onChange={(e) => updateConfig({ reportEnabled: e.target.checked })}
+            />
+            <span className="checkbox-label">
+              {config.reportEnabled ? '任务完成后上报结果' : '不上报任务结果'}
+            </span>
+          </div>
+        </FormGroup>
+
+        {config.reportEnabled && (
+          <FormGroup label="上报接口 URL">
+            <Input
+              id="report-url-input"
+              placeholder="https://example.com/api/messages/sent"
+              value={config.reportUrl || ''}
+              onChange={(value) => updateConfig({ reportUrl: value })}
+            />
+          </FormGroup>
+        )}
       </div>
 
       <div className="queue-actions">
