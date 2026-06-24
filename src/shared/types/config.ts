@@ -4,6 +4,7 @@
 export interface QueueAgentConfig {
   queueUrl: string       // 拉取消息接口完整 URL
   intervalSeconds: number
+  pollDurationHours: number  // 拉取时间周期（小时），默认2小时
   // 上报配置
   reportEnabled: boolean  // 是否启用上报，true=上报，false=不上报
   reportUrl: string      // 上报接口完整 URL
@@ -27,6 +28,7 @@ export interface TestConfig {
 export const DEFAULT_QUEUE_CONFIG: QueueAgentConfig = {
   queueUrl: '',
   intervalSeconds: 60,
+  pollDurationHours: 2,
   reportEnabled: true,
   reportUrl: ''
 }

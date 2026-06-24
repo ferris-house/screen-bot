@@ -44,6 +44,17 @@ function formatDuration(ms: number): string {
   }
 }
 
+// 格式化时间为 yyyy-MM-dd HH:mm:ss
+function formatDateTime(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
 function emitQueueAgentStatus(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('queue-agent:status', queueAgentStatus)
@@ -108,7 +119,24 @@ async function requestApi(url: string, options: Record<string, any> = {}): Promi
 }
 
 async function claimRemoteTasks(): Promise<any[]> {
-  const url = queueAgentConfig.queueUrl
+  // 计算时间范围
+  const endTime = new Date()
+  const pollDurationMs = (queueAgentConfig.pollDurationHours || 2) * 60 * 60 * 1000
+  const startTime = new Date(endTime.getTime() - pollDurationMs)
+
+  const startTimeStr = formatDateTime(startTime)
+  const endTimeStr = formatDateTime(endTime)
+
+  // 构建 URL，添加时间参数
+  let url = queueAgentConfig.queueUrl
+  if (url.includes('?')) {
+    url = `${url}&startTime=${encodeURIComponent(startTimeStr)}&endTime=${encodeURIComponent(endTimeStr)}`
+  } else {
+    url = `${url}?startTime=${encodeURIComponent(startTimeStr)}&endTime=${encodeURIComponent(endTimeStr)}`
+  }
+
+  emitQueueAgentLog(`拉取时间范围：${startTimeStr} ~ ${endTimeStr}`, 'info')
+
   const data = await requestApi(url, {
     method: 'GET'
   })
@@ -325,6 +353,7 @@ export function startQueueAgent(config: QueueAgentConfig, win: BrowserWindow): v
   queueAgentConfig = {
     queueUrl: config.queueUrl,
     intervalSeconds: Math.max(Number(config.intervalSeconds) || 60, 60),
+    pollDurationHours: Number(config.pollDurationHours) || 2,
     reportEnabled: config.reportEnabled ?? true,
     reportUrl: config.reportUrl || ''
   }

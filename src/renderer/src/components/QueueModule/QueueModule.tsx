@@ -113,6 +113,16 @@ const QueueModule: React.FC = () => {
           />
         </FormGroup>
 
+        <FormGroup label="拉取时间周期（小时）">
+          <Input
+            id="poll-duration-input"
+            type="number"
+            min={1}
+            value={config.pollDurationHours || 2}
+            onChange={(value) => updateConfig({ pollDurationHours: Number(value) || 2 })}
+          />
+        </FormGroup>
+
         <FormGroup label="启用上报">
           <div className="checkbox-wrapper">
             <input
